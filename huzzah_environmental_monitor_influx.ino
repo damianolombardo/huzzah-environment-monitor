@@ -41,16 +41,18 @@ Adafruit_SGP30 sgp;
 #define READ_DELAY 10
 
 // DHT22 Data
-int temperatureReading;
-int pressureReading;
+float temperatureReading;
+float pressureReading;
 
 // SGP30 Data
-int tvocReading = 0;
-int ecO2Reading = 0;
+float tvocReading = 0;
+float ecO2Reading = 0;
+uint16_t TVOC_base, eCO2_base;
+int counter = 0;
 
 // BME280 Data
-int altitudeReading = 0;
-int humidityReading = 0;
+float altitudeReading = 0;
+float humidityReading = 0;
 
 // VEML6070 Data
 int uvReading = 0;
@@ -142,6 +144,8 @@ void loop() {
   Serial.print("UV Light Level: ");
   Serial.println(uvReading);
 
+  sgp.setHumidity(getAbsoluteHumidity(temperatureReading, humidityReading));
+  
   if (!sgp.IAQmeasure()) {
     tvocReading = -1;
     ecO2Reading = -1;
@@ -157,6 +161,19 @@ void loop() {
   Serial.print(ecO2Reading);
   Serial.println(" ppm");
 
+  counter++;
+  if (counter >= 30) {
+    counter = 0;
+
+    uint16_t TVOC_base, eCO2_base;
+    if (! sgp.getIAQBaseline(&eCO2_base, &TVOC_base)) {
+      Serial.println("Failed to get baseline readings");
+      return;
+    }
+    Serial.print("****Baseline values: eCO2: 0x"); Serial.print(eCO2_base, HEX);
+    Serial.print(" & TVOC: 0x"); Serial.println(TVOC_base, HEX);
+  }
+   
   sensor.clearFields();
   sensor.addField("temperature", temperatureReading);
   sensor.addField("humidity", humidityReading);
@@ -185,7 +202,7 @@ void loop() {
 // Set up the SGP30 sensor
 void setupSGP30() {
   if (!sgp.begin()) {
-    Serial.println("Sensor not found :(");
+    Serial.println("Could not find a valid SGP30 sensor, check wiring!");
     while (1)
       ;
   }
@@ -209,4 +226,11 @@ void setupBME280() {
       ;
   }
   Serial.println("BME Sensor is set up!");
+}
+
+uint32_t getAbsoluteHumidity(float temperature, float humidity) {
+    // approximation formula from Sensirion SGP30 Driver Integration chapter 3.15
+    const float absoluteHumidity = 216.7f * ((humidity / 100.0f) * 6.112f * exp((17.62f * temperature) / (243.12f + temperature)) / (273.15f + temperature)); // [g/m^3]
+    const uint32_t absoluteHumidityScaled = static_cast<uint32_t>(1000.0f * absoluteHumidity); // [mg/m^3]
+    return absoluteHumidityScaled;
 }
