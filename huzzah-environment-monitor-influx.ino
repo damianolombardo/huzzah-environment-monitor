@@ -35,6 +35,7 @@ Adafruit_SGP30 sgp;
 
 #include <ESP8266WiFi.h>
 #include <InfluxDbClient.h>
+#include <EEPROM.h>
 
 /**************************** Example ***************************************/
 // Delay between sensor reads, in seconds
@@ -48,7 +49,11 @@ float pressureReading;
 float tvocReading = 0;
 float ecO2Reading = 0;
 uint16_t TVOC_base, eCO2_base;
+float rawEthanolReading = 0;
+float rawH2Reading = 0;
 int counter = 0;
+const int EEpromWrite = 1;        // intervall in which to write new baselines into EEPROM in hours
+unsigned long previousMillis = 0; // Millis at which the intervall started
 
 // BME280 Data
 float altitudeReading = 0;
@@ -61,7 +66,8 @@ InfluxDBClient client(INFLUXDB_URL, INFLUXDB_DB_NAME);
 
 Point sensor("environment");
 
-void setup() {
+void setup()
+{
   // start the serial connection
   Serial.begin(9600);
 
@@ -79,7 +85,8 @@ void setup() {
   uv.begin(VEML6070_1_T);
 
   WiFi.begin(WIFI_SSID, WIFI_PASS);
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED)
+  {
     delay(500);
     Serial.print("*");
   }
@@ -97,18 +104,22 @@ void setup() {
   sensor.addTag("device", DEVICE);
 
   // Check server connection
-  if (client.validateConnection()) {
+  if (client.validateConnection())
+  {
     Serial.println("");
     Serial.print("Connected to InfluxDB: ");
     Serial.println(client.getServerUrl());
-  } else {
+  }
+  else
+  {
     Serial.print("InfluxDB connection failed: ");
     Serial.println(client.getLastErrorMessage());
   }
 }
 
-void loop() {
-  
+void loop()
+{
+
   Serial.println("Reading Sensors...");
 
   // Read the temperature from the BME280
@@ -145,13 +156,27 @@ void loop() {
   Serial.println(uvReading);
 
   sgp.setHumidity(getAbsoluteHumidity(temperatureReading, humidityReading));
-  
-  if (!sgp.IAQmeasure()) {
+
+  if (!sgp.IAQmeasure())
+  {
     tvocReading = -1;
     ecO2Reading = -1;
-  } else {
+  }
+  else
+  {
     tvocReading = sgp.TVOC;
     ecO2Reading = sgp.eCO2;
+  }
+
+  if (!sgp.IAQmeasureRaw())
+  {
+    Serial.println("Raw Measurement failed");
+    return;
+  }
+  else
+  {
+    rawH2Reading = sgp.rawH2;
+    rawEthanolReading = sgp.rawEthanol;
   }
 
   Serial.print("TVOC: ");
@@ -161,19 +186,13 @@ void loop() {
   Serial.print(ecO2Reading);
   Serial.println(" ppm");
 
-  counter++;
-  if (counter >= 30) {
-    counter = 0;
+  Serial.print("Raw H2 ");
+  Serial.print(rawH2Reading);
+  Serial.print(" \t");
+  Serial.print("Raw Ethanol ");
+  Serial.print(rawEthanolReading);
+  Serial.println("");
 
-    uint16_t TVOC_base, eCO2_base;
-    if (! sgp.getIAQBaseline(&eCO2_base, &TVOC_base)) {
-      Serial.println("Failed to get baseline readings");
-      return;
-    }
-    Serial.print("****Baseline values: eCO2: 0x"); Serial.print(eCO2_base, HEX);
-    Serial.print(" & TVOC: 0x"); Serial.println(TVOC_base, HEX);
-  }
-   
   sensor.clearFields();
   sensor.addField("temperature", temperatureReading);
   sensor.addField("humidity", humidityReading);
@@ -182,15 +201,47 @@ void loop() {
   sensor.addField("uv", uvReading);
   sensor.addField("tvoc", tvocReading);
   sensor.addField("ecO2", ecO2Reading);
+  sensor.addField("H2", rawH2Reading);
+  sensor.addField("C2H5OH", rawEthanolReading);
 
+  counter++;
+  if (counter >= 30)
+  {
+    counter = 0;
+
+    if (!sgp.getIAQBaseline(&eCO2_base, &TVOC_base))
+    {
+      Serial.println("Failed to get baseline readings");
+      return;
+    }
+    Serial.print("****Baseline values: eCO2: 0x");
+    Serial.print(eCO2_base, HEX);
+    Serial.print(" & TVOC: 0x");
+    Serial.println(TVOC_base, HEX);
+    sensor.addField("tvoc_base", TVOC_base);
+    sensor.addField("ecO2_base", eCO2_base);
+  }
+
+  // Prepare the EEPROMWrite intervall
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - previousMillis >= EEpromWrite * 3600000)
+  {
+    previousMillis = currentMillis;             // reset the loop
+    sgp.getIAQBaseline(&eCO2_base, &TVOC_base); // get the new baseline
+    EEPROM.put(1, TVOC_base);                   // Write new baselines into EEPROM
+    EEPROM.put(10, eCO2_base);
+  }
   Serial.print("Writing: ");
   Serial.println(client.pointToLineProtocol(sensor));
   // If no Wifi signal, try to reconnect it
-  if (WiFi.status() != WL_CONNECTED) {
+  if (WiFi.status() != WL_CONNECTED)
+  {
     Serial.println("Wifi connection lost");
   }
   // Write point
-  if (!client.writePoint(sensor)) {
+  if (!client.writePoint(sensor))
+  {
     Serial.print("InfluxDB write failed: ");
     Serial.println(client.getLastErrorMessage());
   }
@@ -200,8 +251,10 @@ void loop() {
 }
 
 // Set up the SGP30 sensor
-void setupSGP30() {
-  if (!sgp.begin()) {
+void setupSGP30()
+{
+  if (!sgp.begin())
+  {
     Serial.println("Could not find a valid SGP30 sensor, check wiring!");
     while (1)
       ;
@@ -211,16 +264,25 @@ void setupSGP30() {
   Serial.print(sgp.serialnumber[1], HEX);
   Serial.println(sgp.serialnumber[2], HEX);
 
-  // If you previously calibrated the sensor in this environment,
-  // you can assign it to self-calibrate (replace the values with your
-  // baselines): sgp.setIAQBaseline(0x8E68, 0x8F41);
+  // EEPROM.put(0, 0);  // Only for first run, you can turn of Arduino immediately after, then comment this out
+  // EEPROM.put(10, 0); // Only for first run, you can turn of Arduino immediately after, then comment this out
+  EEPROM.get(1, TVOC_base);  // Read 2 Bytes from EEPROM // This values will be written every x hours
+  EEPROM.get(10, eCO2_base); // Read 2 Bytes from EEPROM
+  if (eCO2_base != 0)
+    sgp.setIAQBaseline(TVOC_base, eCO2_base); // This "if" is not strictly needed, but it will make sure nothing is initialized as long as you are testing
+  Serial.print("****Baseline values in EEPROM: eCO2: 0x");
+  Serial.print(eCO2_base, HEX);
+  Serial.print(" & TVOC: 0x");
+  Serial.println(TVOC_base, HEX); // */
 }
 
 // Set up the BME280 sensor
-void setupBME280() {
+void setupBME280()
+{
   bool status;
   status = bme.begin();
-  if (!status) {
+  if (!status)
+  {
     Serial.println("Could not find a valid BME280 sensor, check wiring!");
     while (1)
       ;
@@ -228,9 +290,10 @@ void setupBME280() {
   Serial.println("BME Sensor is set up!");
 }
 
-uint32_t getAbsoluteHumidity(float temperature, float humidity) {
-    // approximation formula from Sensirion SGP30 Driver Integration chapter 3.15
-    const float absoluteHumidity = 216.7f * ((humidity / 100.0f) * 6.112f * exp((17.62f * temperature) / (243.12f + temperature)) / (273.15f + temperature)); // [g/m^3]
-    const uint32_t absoluteHumidityScaled = static_cast<uint32_t>(1000.0f * absoluteHumidity); // [mg/m^3]
-    return absoluteHumidityScaled;
+uint32_t getAbsoluteHumidity(float temperature, float humidity)
+{
+  // approximation formula from Sensirion SGP30 Driver Integration chapter 3.15
+  const float absoluteHumidity = 216.7f * ((humidity / 100.0f) * 6.112f * exp((17.62f * temperature) / (243.12f + temperature)) / (273.15f + temperature)); // [g/m^3]
+  const uint32_t absoluteHumidityScaled = static_cast<uint32_t>(1000.0f * absoluteHumidity);                                                                // [mg/m^3]
+  return absoluteHumidityScaled;
 }
