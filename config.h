@@ -1,6 +1,6 @@
 #define INFLUXDB_USER ""
 #define INFLUXDB_PASSWORD ""
-#define INFLUXDB_URL "influxdb.lan"
+#define INFLUXDB_URL "http://influxdb.lan:8086"
 #define INFLUXDB_DB_NAME "ieq"
 
 #define DEVICE "my_room"
