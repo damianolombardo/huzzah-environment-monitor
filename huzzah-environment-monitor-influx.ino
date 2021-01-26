@@ -26,7 +26,7 @@
 #define BME_MISO 12
 #define BME_MOSI 11
 #define BME_CS 10
-#define SEALEVELPRESSURE_HPA (1013.25)
+#define SEALEVELPRESSURE_HPA (1013.25) //TODO: correct for actuall MSLP
 
 // Instanciate the sensors
 Adafruit_BME280 bme;
@@ -41,10 +41,6 @@ Adafruit_SGP30 sgp;
 // Delay between sensor reads, in seconds
 #define READ_DELAY 10
 
-// DHT22 Data
-float temperatureReading;
-float pressureReading;
-
 // SGP30 Data
 float tvocReading = 0;
 float ecO2Reading = 0;
@@ -52,19 +48,22 @@ uint16_t TVOC_base, eCO2_base;
 float rawEthanolReading = 0;
 float rawH2Reading = 0;
 int counter = 0;
-const int EEpromWrite = 1;        // intervall in which to write new baselines into EEPROM in hours
-unsigned long previousMillis = 0; // Millis at which the intervall started
+int counterMax = 30;              // interval in which to read new baselines from SGP30
+const int EEpromWrite = 1;        // interval in which to write new baselines into EEPROM in hours
+unsigned long previousMillis = 0; // Milliseconds at which the interval started
 
 // BME280 Data
 float altitudeReading = 0;
 float humidityReading = 0;
+float temperatureReading;
+float pressureReading;
 
 // VEML6070 Data
 int uvReading = 0;
 
-InfluxDBClient client(INFLUXDB_URL, INFLUXDB_DB_NAME);
+InfluxDBClient client(INFLUXDB_URL, INFLUXDB_DB_NAME); // create InfluxDB connection
 
-Point sensor("environment");
+Point sensor("environment"); //create InfluxDB mesurement
 
 void setup()
 {
@@ -85,7 +84,7 @@ void setup()
   uv.begin(VEML6070_1_T);
 
   WiFi.begin(WIFI_SSID, WIFI_PASS);
-  while (WiFi.status() != WL_CONNECTED)
+  while (WiFi.status() != WL_CONNECTED) // wait for WiFi connection
   {
     delay(500);
     Serial.print("*");
@@ -155,9 +154,9 @@ void loop()
   Serial.print("UV Light Level: ");
   Serial.println(uvReading);
 
-  sgp.setHumidity(getAbsoluteHumidity(temperatureReading, humidityReading));
+  sgp.setHumidity(getAbsoluteHumidity(temperatureReading, humidityReading)); // set temp and humiditdy for SGP30 for corrected readings
 
-  if (!sgp.IAQmeasure())
+  if (!sgp.IAQmeasure()) // try read SGP30 IAQ values
   {
     tvocReading = -1;
     ecO2Reading = -1;
@@ -168,10 +167,10 @@ void loop()
     ecO2Reading = sgp.eCO2;
   }
 
-  if (!sgp.IAQmeasureRaw())
+  if (!sgp.IAQmeasureRaw()) // try read SGP30 Raw values
   {
-    Serial.println("Raw Measurement failed");
-    return;
+    rawH2Reading = -1;
+    rawEthanolReading = -1;
   }
   else
   {
@@ -193,7 +192,7 @@ void loop()
   Serial.print(rawEthanolReading);
   Serial.println("");
 
-  sensor.clearFields();
+  sensor.clearFields(); // clear InfluxDB fields and write new ones
   sensor.addField("temperature", temperatureReading);
   sensor.addField("humidity", humidityReading);
   sensor.addField("pressure", pressureReading);
@@ -205,7 +204,7 @@ void loop()
   sensor.addField("C2H5OH", rawEthanolReading);
 
   counter++;
-  if (counter >= 30)
+  if (counter >= counterMax) // read baseline SGP30 values after specified normal readings
   {
     counter = 0;
 
@@ -227,20 +226,20 @@ void loop()
 
   if (currentMillis - previousMillis >= EEpromWrite * 3600000)
   {
-    previousMillis = currentMillis;             // reset the loop
-    sgp.getIAQBaseline(&eCO2_base, &TVOC_base); // get the new baseline
-    EEPROM.put(1, TVOC_base);                   // Write new baselines into EEPROM
+    previousMillis = currentMillis; // reset the loop
+    EEPROM.put(1, TVOC_base);       // Write new baselines into EEPROM
     EEPROM.put(10, eCO2_base);
   }
   Serial.print("Writing: ");
   Serial.println(client.pointToLineProtocol(sensor));
+
   // If no Wifi signal, try to reconnect it
   if (WiFi.status() != WL_CONNECTED)
   {
     Serial.println("Wifi connection lost");
   }
   // Write point
-  if (!client.writePoint(sensor))
+  if (!client.writePoint(sensor)) // write to InfluxDB
   {
     Serial.print("InfluxDB write failed: ");
     Serial.println(client.getLastErrorMessage());
