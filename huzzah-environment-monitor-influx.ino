@@ -28,6 +28,7 @@
 #define BME_CS 10
 #define SEALEVELPRESSURE_HPA (1013.25) //TODO: correct for actuall MSLP
 
+
 // Instanciate the sensors
 Adafruit_BME280 bme;
 Adafruit_VEML6070 uv = Adafruit_VEML6070();
@@ -57,6 +58,7 @@ float altitudeReading = 0;
 float humidityReading = 0;
 float temperatureReading;
 float pressureReading;
+float temperatureOffset = 3 // set offset for self heating
 
 // VEML6070 Data
 int uvReading = 0;
@@ -122,7 +124,7 @@ void loop()
   Serial.println("Reading Sensors...");
 
   // Read the temperature from the BME280
-  temperatureReading = bme.readTemperature();
+  temperatureReading = bme.readTemperature() - temperatureOffset;
 
   // convert from celsius to degrees fahrenheit
   // temperatureReading = temperatureReading * 1.8 + 32;
