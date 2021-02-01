@@ -17,6 +17,7 @@
 /**************************** Sensor Configuration****************************************/
 #include "Adafruit_SGP30.h"
 #include "Adafruit_VEML6070.h"
+#include "Adafruit_TSL2591.h"
 #include <Adafruit_BME280.h>
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
@@ -33,12 +34,12 @@
 Adafruit_BME280 bme;
 Adafruit_VEML6070 uv = Adafruit_VEML6070();
 Adafruit_SGP30 sgp;
+Adafruit_TSL2591 tsl = Adafruit_TSL2591(2591)
 
 #include <ESP8266WiFi.h>
 #include <InfluxDbClient.h>
 #include <EEPROM.h>
 
-/**************************** Example ***************************************/
 // Delay between sensor reads, in seconds
 #define READ_DELAY 10
 
@@ -49,8 +50,8 @@ uint16_t TVOC_base, eCO2_base;
 float rawEthanolReading = 0;
 float rawH2Reading = 0;
 int counter = 0;
-const int counterMax = 30;           // interval in which to read new baselines from SGP30
-const float EEpromWrite = 1;        // interval in which to write new baselines into EEPROM in hours
+#define COUNTERMAX 30           // interval in which to read new baselines from SGP30
+#define EEPROMWRITE 1        // interval in which to write new baselines into EEPROM in hours
 unsigned long previousMillis = 0; // Milliseconds at which the interval started
 
 // BME280 Data
@@ -59,6 +60,13 @@ float humidityReading = 0;
 float temperatureReading;
 float pressureReading;
 float temperatureOffset = 0; // set offset for self heating
+
+// TSL2591 Data
+uint32_t lumReading = 0;
+uint16_t irReading = 0;
+uint16_t fullReading = 0;
+uint16_t visibleReading = 0;
+float luxReading = 0;
 
 // VEML6070 Data
 int uvReading = 0;
@@ -194,20 +202,48 @@ void loop()
   Serial.print("Raw Ethanol: ");
   Serial.print(rawEthanolReading);
   Serial.println("");
+  
+  // Read TSL2591
+  lumReading = tsl.getFullLuminosity();
+  irReading= lumReading >> 16;
+  fullReading = lumReading & 0xFFFF;
+  visibleReading = fullReading - irReading
+  luxReading = tsl.calculateLux(fullReading, irReading)
+
+  Serial.print(F("IR: ")); 
+  Serial.print(irReading);  
+  Serial.println("");
+  Serial.print(F("Full: ")); 
+  Serial.print(fullReading); 
+  Serial.println("");
+  Serial.print(F("Visible: ")); 
+  Serial.print(visibleReading); 
+  Serial.println("");
+  Serial.print(F("Lux: ")); 
+  Serial.println(luxReading, 6);
 
   sensor.clearFields(); // clear InfluxDB fields and write new ones
+  // BME280
   sensor.addField("temperature", temperatureReading);
   sensor.addField("humidity", humidityReading);
   sensor.addField("pressure", pressureReading);
   sensor.addField("altitude", altitudeReading);
+  // VEML6070
   sensor.addField("uv", uvReading);
+  // SGP30
   sensor.addField("tvoc", tvocReading);
   sensor.addField("ecO2", ecO2Reading);
   sensor.addField("H2", rawH2Reading);
   sensor.addField("C2H5OH", rawEthanolReading);
+  // TSL2591
+  sensor.addField("luminosity", lumReading);
+  sensor.addField("infra-red-light", irReading);
+  sensor.addField("full-spectrum-light", fullReading);
+  sensor.addField("visible-light", visibleReading);
+  sensor.addField("lux", luxReading);
 
   counter++;
-  if (counter >= counterMax) // read baseline SGP30 values after specified normal readings
+  if (counter >= COUNTERMAX) // read baseline SGP30 values after specified normal readings
   {
     counter = 0;
 
@@ -227,14 +263,13 @@ void loop()
   // Prepare the EEPROMWrite intervall
   unsigned long currentMillis = millis();
 
-  if (currentMillis - previousMillis >= EEpromWrite * 60 * 60 * 1000)
+  if (currentMillis - previousMillis >= EEPROMWRITE * 60 * 60 * 1000)
   {
     previousMillis = currentMillis; // reset the loop
     EEPROM.begin(512);
     EEPROM.put(1, TVOC_base);       // Write new baselines into EEPROM
     EEPROM.put(10, eCO2_base);
-    if (EEPROM.commit()){
-    } else {
+    if (!EEPROM.commit()){
       Serial.println("ERROR! EEPROM commit failed");
     }
     Serial.print("## Writing new baseline values to EEPROM: eCO2: 0x");
@@ -300,6 +335,80 @@ void setupBME280()
       ;
   }
   Serial.println("## BME Sensor is set up!");
+}
+
+// Set up the TSL2591 sensor
+void setupTSL2591()
+{
+  if (!tsl.begin()) 
+  {
+    Serial.println(F("## Could not find a valid TSL2591 sensor, check wiring!"));
+    while (1);
+  }
+  Serial.println("## TSL Sensor is set up!");
+  
+  displayTSL2591SensorDetails();
+
+  configureTSL2591Sensor();
+
+}
+
+void displayTSL2591SensorDetails(void)
+{
+  sensor_t sensor;
+  tsl.getSensor(&sensor);
+  Serial.println(F("------------------------------------"));
+  Serial.print  (F("Sensor:       ")); Serial.println(sensor.name);
+  Serial.print  (F("Driver Ver:   ")); Serial.println(sensor.version);
+  Serial.print  (F("Unique ID:    ")); Serial.println(sensor.sensor_id);
+  Serial.print  (F("Max Value:    ")); Serial.print(sensor.max_value); Serial.println(F(" lux"));
+  Serial.print  (F("Min Value:    ")); Serial.print(sensor.min_value); Serial.println(F(" lux"));
+  Serial.print  (F("Resolution:   ")); Serial.print(sensor.resolution, 4); Serial.println(F(" lux"));  
+  Serial.println(F("------------------------------------"));
+  Serial.println(F(""));
+  delay(500);
+}
+
+void configureTSL2591Sensor(void)
+{
+  // You can change the gain on the fly, to adapt to brighter/dimmer light situations
+  //tsl.setGain(TSL2591_GAIN_LOW);    // 1x gain (bright light)
+  tsl.setGain(TSL2591_GAIN_MED);      // 25x gain
+  //tsl.setGain(TSL2591_GAIN_HIGH);   // 428x gain
+  
+  // Changing the integration time gives you a longer time over which to sense light
+  // longer timelines are slower, but are good in very low light situtations!
+  //tsl.setTiming(TSL2591_INTEGRATIONTIME_100MS);  // shortest integration time (bright light)
+  // tsl.setTiming(TSL2591_INTEGRATIONTIME_200MS);
+  tsl.setTiming(TSL2591_INTEGRATIONTIME_300MS);
+  // tsl.setTiming(TSL2591_INTEGRATIONTIME_400MS);
+  // tsl.setTiming(TSL2591_INTEGRATIONTIME_500MS);
+  // tsl.setTiming(TSL2591_INTEGRATIONTIME_600MS);  // longest integration time (dim light)
+
+  /* Display the gain and integration time for reference sake */  
+  Serial.println(F("------------------------------------"));
+  Serial.print  (F("Gain:         "));
+  tsl2591Gain_t gain = tsl.getGain();
+  switch(gain)
+  {
+    case TSL2591_GAIN_LOW:
+      Serial.println(F("1x (Low)"));
+      break;
+    case TSL2591_GAIN_MED:
+      Serial.println(F("25x (Medium)"));
+      break;
+    case TSL2591_GAIN_HIGH:
+      Serial.println(F("428x (High)"));
+      break;
+    case TSL2591_GAIN_MAX:
+      Serial.println(F("9876x (Max)"));
+      break;
+  }
+  Serial.print  (F("Timing:       "));
+  Serial.print((tsl.getTiming() + 1) * 100, DEC); 
+  Serial.println(F(" ms"));
+  Serial.println(F("------------------------------------"));
+  Serial.println(F(""));
 }
 
 uint32_t getAbsoluteHumidity(float temperature, float humidity)
