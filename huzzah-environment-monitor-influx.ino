@@ -49,8 +49,8 @@ uint16_t TVOC_base, eCO2_base;
 float rawEthanolReading = 0;
 float rawH2Reading = 0;
 int counter = 0;
-int counterMax = 30;              // interval in which to read new baselines from SGP30
-const int EEpromWrite = 1;        // interval in which to write new baselines into EEPROM in hours
+const int counterMax = 30;           // interval in which to read new baselines from SGP30
+const float EEpromWrite = 1;        // interval in which to write new baselines into EEPROM in hours
 unsigned long previousMillis = 0; // Milliseconds at which the interval started
 
 // BME280 Data
@@ -58,7 +58,7 @@ float altitudeReading = 0;
 float humidityReading = 0;
 float temperatureReading;
 float pressureReading;
-float temperatureOffset = 3 // set offset for self heating
+float temperatureOffset = 0; // set offset for self heating
 
 // VEML6070 Data
 int uvReading = 0;
@@ -76,7 +76,7 @@ void setup()
   while (!Serial)
     ;
 
-  Serial.println("Adafruit IO Environmental Logger");
+  Serial.println("# Adafruit IO Environmental Logger");
 
   // set up BME280
   setupBME280();
@@ -88,13 +88,13 @@ void setup()
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   while (WiFi.status() != WL_CONNECTED) // wait for WiFi connection
   {
-    delay(500);
-    Serial.print("*");
+    delay(100);
+    Serial.print("|");
   }
 
   Serial.println("");
-  Serial.println("WiFi connection Successful");
-  Serial.print("The IP Address of ESP8266 Module is: ");
+  Serial.println("## WiFi connection Successful");
+  Serial.print("### The IP Address of ESP8266 Module is: ");
   Serial.print(WiFi.localIP()); // Print the IP address
 
   // Set InfluxDB 1 authentication params
@@ -108,12 +108,12 @@ void setup()
   if (client.validateConnection())
   {
     Serial.println("");
-    Serial.print("Connected to InfluxDB: ");
+    Serial.print("## Connected to InfluxDB: ");
     Serial.println(client.getServerUrl());
   }
   else
   {
-    Serial.print("InfluxDB connection failed: ");
+    Serial.print("## InfluxDB connection failed: ");
     Serial.println(client.getLastErrorMessage());
   }
 }
@@ -121,7 +121,8 @@ void setup()
 void loop()
 {
 
-  Serial.println("Reading Sensors...");
+  Serial.println("");
+  Serial.println("## Reading Sensors...");
 
   // Read the temperature from the BME280
   temperatureReading = bme.readTemperature() - temperatureOffset;
@@ -182,15 +183,15 @@ void loop()
 
   Serial.print("TVOC: ");
   Serial.print(tvocReading);
-  Serial.print(" ppb\t");
+  Serial.println("ppb");
   Serial.print("eCO2: ");
   Serial.print(ecO2Reading);
   Serial.println(" ppm");
 
-  Serial.print("Raw H2 ");
+  Serial.print("Raw H2: ");
   Serial.print(rawH2Reading);
-  Serial.print(" \t");
-  Serial.print("Raw Ethanol ");
+  Serial.println("");
+  Serial.print("Raw Ethanol: ");
   Serial.print(rawEthanolReading);
   Serial.println("");
 
@@ -212,10 +213,10 @@ void loop()
 
     if (!sgp.getIAQBaseline(&eCO2_base, &TVOC_base))
     {
-      Serial.println("Failed to get baseline readings");
+      Serial.println("## Failed to get baseline readings");
       return;
     }
-    Serial.print("****Baseline values: eCO2: 0x");
+    Serial.print("## Baseline values: eCO2: 0x");
     Serial.print(eCO2_base, HEX);
     Serial.print(" & TVOC: 0x");
     Serial.println(TVOC_base, HEX);
@@ -226,14 +227,23 @@ void loop()
   // Prepare the EEPROMWrite intervall
   unsigned long currentMillis = millis();
 
-  if (currentMillis - previousMillis >= EEpromWrite * 3600000)
+  if (currentMillis - previousMillis >= EEpromWrite * 60 * 60 * 1000)
   {
     previousMillis = currentMillis; // reset the loop
+    EEPROM.begin(512);
     EEPROM.put(1, TVOC_base);       // Write new baselines into EEPROM
     EEPROM.put(10, eCO2_base);
+    if (EEPROM.commit()){
+    } else {
+      Serial.println("ERROR! EEPROM commit failed");
+    }
+    Serial.print("## Writing new baseline values to EEPROM: eCO2: 0x");
+    Serial.print(eCO2_base, HEX);
+    Serial.print(" & TVOC: 0x");
+    Serial.println(TVOC_base, HEX);
   }
-  Serial.print("Writing: ");
-  Serial.println(client.pointToLineProtocol(sensor));
+  // Serial.print("Writing: ");
+  // Serial.println(client.pointToLineProtocol(sensor));
 
   // If no Wifi signal, try to reconnect it
   if (WiFi.status() != WL_CONNECTED)
@@ -256,22 +266,23 @@ void setupSGP30()
 {
   if (!sgp.begin())
   {
-    Serial.println("Could not find a valid SGP30 sensor, check wiring!");
+    Serial.println("## Could not find a valid SGP30 sensor, check wiring!");
     while (1)
       ;
   }
-  Serial.print("Found SGP30 serial #");
+  Serial.print("## Found SGP30 serial #");
   Serial.print(sgp.serialnumber[0], HEX);
   Serial.print(sgp.serialnumber[1], HEX);
   Serial.println(sgp.serialnumber[2], HEX);
-
+  EEPROM.begin(512);
   // EEPROM.put(0, 0);  // Only for first run, you can turn of Arduino immediately after, then comment this out
   // EEPROM.put(10, 0); // Only for first run, you can turn of Arduino immediately after, then comment this out
   EEPROM.get(1, TVOC_base);  // Read 2 Bytes from EEPROM // This values will be written every x hours
   EEPROM.get(10, eCO2_base); // Read 2 Bytes from EEPROM
+  EEPROM.end();
   if (eCO2_base != 0)
     sgp.setIAQBaseline(TVOC_base, eCO2_base); // This "if" is not strictly needed, but it will make sure nothing is initialized as long as you are testing
-  Serial.print("****Baseline values in EEPROM: eCO2: 0x");
+  Serial.print("Baseline values in EEPROM: eCO2: 0x");
   Serial.print(eCO2_base, HEX);
   Serial.print(" & TVOC: 0x");
   Serial.println(TVOC_base, HEX); // */
@@ -284,11 +295,11 @@ void setupBME280()
   status = bme.begin();
   if (!status)
   {
-    Serial.println("Could not find a valid BME280 sensor, check wiring!");
+    Serial.println("## Could not find a valid BME280 sensor, check wiring!");
     while (1)
       ;
   }
-  Serial.println("BME Sensor is set up!");
+  Serial.println("## BME Sensor is set up!");
 }
 
 uint32_t getAbsoluteHumidity(float temperature, float humidity)
