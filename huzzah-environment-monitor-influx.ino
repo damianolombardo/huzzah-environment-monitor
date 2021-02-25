@@ -164,6 +164,7 @@ void loop()
   Serial.print("UV Light Level: ");
   Serial.println(uvReading);
 
+  // SGP30
   sgp.setHumidity(getAbsoluteHumidity(temperatureReading, humidityReading)); // set temp and humiditdy for SGP30 for corrected readings
 
   if (!sgp.IAQmeasure()) // try read SGP30 IAQ values

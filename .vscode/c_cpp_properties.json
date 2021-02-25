@@ -6,7 +6,7 @@
                 "${env:LOCALAPPDATA}\\Arduino15\\packages\\esp8266\\tools\\**",
                 "${env:LOCALAPPDATA}\\Arduino15\\packages\\esp8266\\hardware\\esp8266\\2.7.4\\**",
                 "${workspaceFolder}/**",
-                "${env:USERPROFILE}\\Documents\\Arduino\\libraries\\**"
+                "${env:USERPROFILE}\\Documents\\Arduino\\libraries\\**",
             ],
             "defines": [
                 "_DEBUG",
