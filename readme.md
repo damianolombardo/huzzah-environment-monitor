@@ -9,4 +9,5 @@ Based of the [adafruit-io-air-quality-monitor](https://learn.adafruit.com/adafru
 * Humidity, Barometric Pressure + Temp sensor - [Adafruit BME280 Library](https://github.com/adafruit/Adafruit_BME280_Library)
 * UV sensor - [Adafruit VEML6070 Library](https://github.com/adafruit/Adafruit_VEML6070)
 * Digital luminosity sensor - [Adafruit TSL2591 Library](https://github.com/adafruit/Adafruit_TSL2591_Library)
-* [InfluxDB Arduino Client ](https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino)
+* Analog Sound Sensor - [SKU DFR0034](https://wiki.dfrobot.com/Analog_Sound_Sensor_SKU__DFR0034)
+* Data logging - [InfluxDB Arduino Client](https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino)

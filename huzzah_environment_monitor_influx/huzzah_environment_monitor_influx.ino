@@ -70,6 +70,9 @@ float luxReading = 0;
 // VEML6070 Data
 float uvReading = 0;
 
+// DFR0034
+int DFR0034;
+
 InfluxDBClient client(INFLUXDB_URL, INFLUXDB_DB_NAME); // create InfluxDB connection
 
 Point sensor("environment"); //create InfluxDB mesurement
@@ -210,17 +213,23 @@ void loop()
   visibleReading = fullReading - irReading;
   luxReading = tsl.calculateLux(fullReading, irReading);
 
-  Serial.print(F("IR: "));
+  Serial.print("IR: ");
   Serial.print(irReading);
   Serial.println("");
-  Serial.print(F("Full: "));
+  Serial.print("Full: ");
   Serial.print(fullReading);
   Serial.println("");
-  Serial.print(F("Visible: "));
+  Serial.print("Visible: ");
   Serial.print(visibleReading);
   Serial.println("");
-  Serial.print(F("Lux: "));
+  Serial.print("Lux: ");
   Serial.println(luxReading, 6);
+
+  //Read DFR0034 on analouge
+  DFR0034=analogRead(0);
+
+  Serial.print("Sound: ");
+  Serial.println(DFR0034);
 
   sensor.clearFields(); // clear InfluxDB fields and write new ones
   // BME280
@@ -241,6 +250,8 @@ void loop()
   sensor.addField("full-spectrum-light", fullReading);
   sensor.addField("visible-light", visibleReading);
   sensor.addField("lux", luxReading);
+  // DFR0034
+  sensor.addField("sound",DFR0034);
 
   counter++;
   if (counter >= COUNTERMAX) // read baseline SGP30 values after specified normal readings
