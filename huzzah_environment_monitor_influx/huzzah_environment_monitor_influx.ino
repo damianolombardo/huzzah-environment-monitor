@@ -43,12 +43,12 @@ Adafruit_TSL2591 tsl = Adafruit_TSL2591(2591);
 #define READ_DELAY 10
 
 // SGP30 Data
-float tvocReading = 0;
-float ecO2Reading = 0;
+uint32_t tvocReading = 0;
+uint32_t ecO2Reading = 0;
 uint16_t TVOC_base, eCO2_base;
-float rawEthanolReading = 0;
-float rawH2Reading = 0;
-int counter = 0;
+uint32_t rawEthanolReading = 0;
+uint32_t rawH2Reading = 0;
+uint32_t counter = 0;
 #define COUNTERMAX 30             // interval in which to read new baselines from SGP30
 #define EEPROMWRITE 1             // interval in which to write new baselines into EEPROM in hours
 unsigned long previousMillis = 0; // Milliseconds at which the interval started
@@ -71,7 +71,7 @@ float luxReading = 0;
 float uvReading = 0;
 
 // DFR0034
-int DFR0034;
+uint32_t DFR0034;
 
 InfluxDBClient client(INFLUXDB_URL, INFLUXDB_DB_NAME); // create InfluxDB connection
 
