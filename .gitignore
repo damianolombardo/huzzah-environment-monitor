@@ -32,4 +32,4 @@
 *.app
 
 
-config.h
+huzzah_environment_monitor_influx/config.h

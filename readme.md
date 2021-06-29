@@ -11,3 +11,6 @@ Based of the [adafruit-io-air-quality-monitor](https://learn.adafruit.com/adafru
 * Digital luminosity sensor - [Adafruit TSL2591 Library](https://github.com/adafruit/Adafruit_TSL2591_Library)
 * Analog Sound Sensor - [SKU DFR0034](https://wiki.dfrobot.com/Analog_Sound_Sensor_SKU__DFR0034)
 * Data logging - [InfluxDB Arduino Client](https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino)
+
+## Dashboard Details
+* Comfortable ranges - [Awair](https://support.getawair.com/hc/en-us/articles/1500005185002-Awair-Score-and-Air-Quality-Factors-Measured-By-Awair-Omni)
