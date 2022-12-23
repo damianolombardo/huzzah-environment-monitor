@@ -4,9 +4,10 @@
             "name": "Win32",
             "includePath": [
                 "${env:LOCALAPPDATA}\\Arduino15\\packages\\esp8266\\tools\\**",
-                "${env:LOCALAPPDATA}\\Arduino15\\packages\\esp8266\\hardware\\esp8266\\2.7.4\\**",
+                "${env:LOCALAPPDATA}\\Arduino15\\packages\\esp8266\\hardware\\esp8266\\**\\**",
                 "${workspaceFolder}/**",
-                "${env:USERPROFILE}\\Documents\\Arduino\\libraries\\**"
+                "${env:USERPROFILE}\\Documents\\Arduino\\libraries\\**",
+                "${env:USERPROFILE}\\OneDrive\\Documents\\Arduino\\libraries\\**"
             ],
             "defines": [
                 "_DEBUG",

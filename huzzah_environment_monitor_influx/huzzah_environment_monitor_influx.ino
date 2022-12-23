@@ -27,7 +27,7 @@
 #define BME_MISO 12
 #define BME_MOSI 11
 #define BME_CS 10
-#define SEALEVELPRESSURE_HPA (1013.25) //TODO: correct for actuall MSLP
+#define SEALEVELPRESSURE_HPA (1013.25) // TODO: correct for actuall MSLP
 
 // Instanciate the sensors
 Adafruit_BME280 bme;
@@ -75,7 +75,7 @@ uint32_t DFR0034;
 
 InfluxDBClient client(INFLUXDB_URL, INFLUXDB_DB_NAME); // create InfluxDB connection
 
-Point sensor("environment"); //create InfluxDB mesurement
+Point sensor("environment"); // create InfluxDB mesurement
 
 void setup()
 {
@@ -225,8 +225,8 @@ void loop()
   Serial.print("Lux: ");
   Serial.println(luxReading, 6);
 
-  //Read DFR0034 on analouge
-  DFR0034=analogRead(0);
+  // Read DFR0034 on analouge
+  DFR0034 = analogRead(0);
 
   Serial.print("Sound: ");
   Serial.println(DFR0034);
@@ -251,7 +251,7 @@ void loop()
   sensor.addField("visible-light", visibleReading);
   sensor.addField("lux", luxReading);
   // DFR0034
-  sensor.addField("sound",DFR0034);
+  sensor.addField("sound", DFR0034);
 
   counter++;
   if (counter >= COUNTERMAX) // read baseline SGP30 values after specified normal readings
@@ -393,13 +393,13 @@ void displayTSL2591SensorDetails(void)
 void configureTSL2591Sensor(void)
 {
   // You can change the gain on the fly, to adapt to brighter/dimmer light situations
-  //tsl.setGain(TSL2591_GAIN_LOW);    // 1x gain (bright light)
+  // tsl.setGain(TSL2591_GAIN_LOW);    // 1x gain (bright light)
   tsl.setGain(TSL2591_GAIN_MED); // 25x gain
-  //tsl.setGain(TSL2591_GAIN_HIGH);   // 428x gain
+  // tsl.setGain(TSL2591_GAIN_HIGH);   // 428x gain
 
   // Changing the integration time gives you a longer time over which to sense light
   // longer timelines are slower, but are good in very low light situtations!
-  //tsl.setTiming(TSL2591_INTEGRATIONTIME_100MS);  // shortest integration time (bright light)
+  // tsl.setTiming(TSL2591_INTEGRATIONTIME_100MS);  // shortest integration time (bright light)
   // tsl.setTiming(TSL2591_INTEGRATIONTIME_200MS);
   tsl.setTiming(TSL2591_INTEGRATIONTIME_300MS);
   // tsl.setTiming(TSL2591_INTEGRATIONTIME_400MS);
